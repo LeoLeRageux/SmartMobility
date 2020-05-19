@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8 />
+<title>Point animé sur trajectoire</title>
+<meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+<script src='https://api.mapbox.com/mapbox.js/v3.3.0/mapbox.js'></script>
+<link href='https://api.mapbox.com/mapbox.js/v3.3.0/mapbox.css' rel='stylesheet' />
+<!-- animatedMarker plugin -->
+<script src="AnimatedMarker.js"></script>
+</head>
+<body>
+<center>
+<p id="info"> --- </p>
+<div id='map' style='width: 1590px; height: 500px;' onclick="addPointer()"></div>
+<p> Simulation speed : <button id="simSpeed" onclick="changeSpeed()">Normal</button></p>
+<button onclick="createNewRoute()">Draw a new path</button>
+<button onclick="showSettings()">Settings</button>
+
+<label for="color-path-select">Change a specific marker's icon :</label>
+<select name="marker-icon" id="marker-icon-select" onchange="if(this.value != ''){changeIcon(simulationBias-(mergedRoutes.length-this.value));}">
+	<option value="">--Choose an icon--</option>
+</select>
+<button onclick="downloadPaths()">Download Paths</button>
+<button onclick="alert('Not done yet !');">Upload Paths</button>
+<button onclick="showPathManagement()">Path Management</button>
+
+<div id="settings" style="display: none">
+	<label for="color-marker-select">Markers color :</label>
+	<select name="colors-marker" id="color-marker-select" onchange="changeMarkersColor()">
+		<option value="#3388ff">--Choose a color--</option> <!-- default color -->
+		<option value="blue">Blue</option>
+		<option value="red">Red</option>
+		<option value="green">Green</option>
+	</select>
+	<label for="color-path-select">Paths color :</label>
+	<select name="colors-path" id="color-path-select" onchange="changePathsColor()">
+		<option value="#3388ff">--Choose a color--</option> <!-- default color -->
+		<option value="blue">Blue</option>
+		<option value="red">Red</option>
+		<option value="green">Green</option>
+	</select>
+</div>
+<div id="path-management" style="display: none">
+	<button onclick="">Add a path</button>
+	<label for="path-select">Choose a path :</label>
+	<select name="path-select" id="path-select" onchange="">
+		<option value="">--Choose a path--</option>
+	</select>
+	<button onclick="">Edit path</button>
+	<button onclick="">Delete path</button>
+</div>
+</center>
+<br/>
+<center>
+<button onclick="simulateTrajectory()">Start Simulation</button>
+</center>
+<script>
+var newRoute = false;
+function createNewRoute(){
+	newRoute = true;
+	polylineId++;
+}
+function showPathManagement(){
+	var settingsDiv = document.getElementById("path-management");
+	if (settingsDiv.style.display === "none") {
+		settingsDiv.style.display = "block";
+	} else {
+		settingsDiv.style.display = "none";
+	}
+}
+
+var currentRunningMarkers = []; // array with current running animated markers to check if the color of the markers can be changed, animated markers will be removed on end of the animation
+// currentRunningMarkers can be improved so we can check marker by marker (but the function used in animatedMarkers.js onEnd (pop()) might not work)
+function showSettings(){
+	var settingsDiv = document.getElementById("settings");
+	if (settingsDiv.style.display === "none") {
+		settingsDiv.style.display = "block";
+	} else {
+		settingsDiv.style.display = "none";
+	}
+}
+function changeSpeed(){
+	var btnSimSpeed = document.getElementById("simSpeed");
+	if(btnSimSpeed.innerHTML == "Slow"){
+		btnSimSpeed.innerHTML = "Normal"; // Normal
+		for(var m=0; m<animatedMarkers.length; m++){
+			animatedMarkers[m].options.interval = 300;
+		}
+	} else if(btnSimSpeed.innerHTML == "Normal"){
+		btnSimSpeed.innerHTML = "Fast"; // Fast
+		for(var m=0; m<animatedMarkers.length; m++){
+			animatedMarkers[m].options.interval = 100;
+		}
+	} else {
+		btnSimSpeed.innerHTML = "Slow"; // Slow
+		for(var m=0; m<animatedMarkers.length; m++){
+			animatedMarkers[m].options.interval = 700;
+		}
+	}
+}
+var polylines = [];
+var polylineId = 0;
+var polylineIds = [];
+function callApi(){
+	var client = new XMLHttpRequest();
+	client.open("GET",
+	"https://api.mapbox.com/directions/v5/mapbox/driving/"+latLng[route+1]+","+latLng[route]+";"+latLng[route+3]+","+latLng[route+2]+"?geometries=geojson&access_token=pk.eyJ1IjoibGVvbHIiLCJhIjoiY2s5bXB1ZnUzMDZzZjNmbnR6OXVzemF0byJ9.MeB8qySF0KJn0WHkOOZj3Q"
+	, true);
+	client.onreadystatechange = function() {
+		if(client.readyState == 4) {
+			var polylinePoints = [];
+			for(var i=0; i<JSON.parse(client.responseText).routes[0].geometry.coordinates.length; i++){
+				var coords = JSON.parse(client.responseText).routes[0].geometry.coordinates[i];
+				var longitude = JSON.stringify(coords).replace("[","").split(",")[0];
+				var latitude = JSON.stringify(coords).replace("]","").split(",")[1];
+				var latLngPoly = [];
+				latLngPoly.push(latitude);
+				latLngPoly.push(longitude);
+				polylinePoints.push(latLngPoly);
+			}
+			polylines.push(L.polyline(polylinePoints).addTo(map));
+			polylineIds.push(polylineId);
+			editPathsList();
+		};
+	};
+	client.send();
+}
+
+function editPathsList(){
+	var pathId = 0;
+	// clear select options
+	for(var j=document.getElementById("path-select").options.length-1; j>=0; j--){
+		document.getElementById("path-select").options[j]=null;
+	}
+	// add the "Choose a path" option
+	var optionChoose = document.createElement("option");
+	optionChoose.text = "--Choose a path--";
+	document.getElementById("path-select").add(optionChoose);
+	// add all the paths options
+	for(var i=0; i<polylines.length; i++){
+		var option = document.createElement("option");
+		option.text = "Path n°"+pathId;
+		option.value = pathId;
+		document.getElementById("path-select").add(option);
+		pathId++;
+	}
+}
+
+L.mapbox.accessToken = 'pk.eyJ1IjoibGVvbHIiLCJhIjoiY2s5bXB1ZnUzMDZzZjNmbnR6OXVzemF0byJ9.MeB8qySF0KJn0WHkOOZj3Q';
+var map = L.mapbox.map('map')
+    .setView([40, -74.50], 9)
+    .addLayer(L.mapbox.styleLayer('mapbox://styles/mapbox/streets-v11'));
+
+var selectId = 1;
+var simulationBias = -1;
+var markerNumber = 1;
+var i=0;
+var latLng = [];
+var markers = [];
+var markerPathId = 0;
+var markersPathIds = [];
+var route = 0;
+function addPointer(){
+	var marker = L.circleMarker([
+	document.getElementById("info").innerHTML.split(",")[0],
+	document.getElementById("info").innerHTML.split(",")[1]
+	],{radius : 6}).addTo(map);
+	latLng.push(document.getElementById("info").innerHTML.split(",")[0]);
+	latLng.push(document.getElementById("info").innerHTML.split(",")[1]);
+	markers.push(marker);
+	markersPathIds.push(markerPathId);
+	if(i>0){
+		traceRoute();
+	}
+	i = i+1;
+}
+
+function traceRoute(){
+		if(!newRoute){
+			callApi();
+		}
+		if(newRoute || polylines.length == 0){
+			var option = document.createElement("option");
+			option.text = "Change marker "+markerNumber+"'s icon";
+			option.value = selectId;
+			document.getElementById("marker-icon-select").add(option);
+			selectId++;
+			markerNumber++;
+			newRoute = false;
+		}
+		route+=2;
+}
+		
+var lat, lng;
+
+map.addEventListener('mousemove', function(ev) {
+   lat = ev.latlng.lat;
+   lng = ev.latlng.lng;
+   document.getElementById('info').innerHTML = lat +","+ lng;
+});
+
+var animatedMarkers = [];
+var markersIconId = [];
+var mergedRoutes = [];
+function simulateTrajectory(){
+	document.getElementById("simSpeed").innerHTML = "Normal";
+	var uniqueArray = polylineIds.filter(function(item, pos) {
+		return polylineIds.indexOf(item) == pos;
+	})
+	for(var ids = 0; ids < uniqueArray.length; ids++){
+		var mergedRoute = [];
+		for(var i = 0; i < polylines.length; i++){
+			if(polylineIds[i] == ids){
+				mergedRoute.push(polylines[i].getLatLngs());
+			}
+		}
+		mergedRoute = mergedRoute.flat();
+		if(mergedRoutes.length > 0){
+			var routeIsntInArrayYet = true;
+			for(var test = 0; test < mergedRoutes.length; test++){
+				if(mergedRoutes[test].join() == mergedRoute.join()){
+					routeIsntInArrayYet = false; // route is in array
+				}
+			}
+			if(routeIsntInArrayYet){
+				mergedRoutes.push(mergedRoute);
+			}
+		} else {
+			mergedRoutes.push(mergedRoute);
+		}
+	}
+	for(n=0; n<mergedRoutes.length; n++){
+		var animatedMarker = L.animatedMarker(mergedRoutes[n]);
+		map.addLayer(animatedMarker);
+		animatedMarkers.push(animatedMarker);
+		currentRunningMarkers.push(animatedMarker);
+		markersIconId.push(0); // default icon is id 0
+		simulationBias += 1;
+	}
+}
+
+var redIcon = new L.Icon({
+  iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+var blueIcon = new L.Icon({
+  iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+var greenIcon = new L.Icon({
+  iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+function changeIcon(iconNumber){
+	if(currentRunningMarkers.length != 0){
+		animatedMarkers[iconNumber].setIcon(redIcon);
+	} else {
+		alert("Start the simulation before changing markers colors !");
+	}
+}
+
+function changePathsColor(){
+	if(polylines.length != 0){
+		for(var i=0; i<polylines.length; i++){
+			polylines[i].setStyle({
+				color: document.getElementById("color-path-select").value
+			});
+		}
+	}
+	else {
+		alert("Draw at least 1 path before changing path colors !");
+	}
+}
+function changeMarkersColor(){
+	if(currentRunningMarkers.length != 0){
+		var selectedValue = document.getElementById("color-marker-select").value
+		for(var i=0; i<animatedMarkers.length; i++){
+			if(selectedValue == "blue" || selectedValue == "#3388ff"){
+				animatedMarkers[i].setIcon(blueIcon);
+			} else if(selectedValue == "red"){
+				animatedMarkers[i].setIcon(redIcon);
+			} else {
+				animatedMarkers[i].setIcon(greenIcon);
+			}
+		}
+	} else {
+		alert("Start the simulation before changing markers colors !");
+	}
+}
+
+var stringToDownload;
+function downloadPaths(){
+	// create a string that will be converted into a JSON file : {"paths":[[{"id":0},{"coords":[[1,2]]}],[{"id":0},{"coords":[[1,2],[1,2]]}]]}
+	var JSONstring = '';
+	JSONstring+='{"paths":[';
+	for(var i=0; i<polylines.length; i++){ // for each polyline
+		JSONstring+='[';
+		var polyId = polylineIds[i] // id of the current polyline
+		var currentCoords = polylines[i].getLatLngs(); // latLngs of the current polyline
+		JSONstring+='{"id":'+polyId+'},{"coords":[';
+		for(var j=0; j<currentCoords.length; j++){
+			JSONstring+='[';
+			JSONstring+=currentCoords[j].lat+','+currentCoords[j].lng;
+			JSONstring+=']';
+			if(j!=currentCoords.length-1){
+				JSONstring+=',';
+			}
+		}
+		JSONstring+=']}]';
+		if(i!=polylines.length-1){
+			JSONstring+=',';
+		}
+	}
+	JSONstring+=']}';
+	stringToDownload = JSON.parse(JSONstring);
+	// usage to get a coordinate or an id : stringToDownload['paths'][pathId][0 for id, 1 for coords]['coords' or 'id'][index if coords]
+	downloadObjectAsJson(stringToDownload, 'paths-'+new Date().toLocaleDateString()+"-"+new Date().getHours()+":"+new Date().getMinutes()+":"+new Date().getSeconds());
+}
+
+function downloadObjectAsJson(exportObj, exportName){
+    var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
+    var downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", exportName + ".json");
+    document.body.appendChild(downloadAnchorNode); // required for firefox
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+</script>
+</body>
+</html>
