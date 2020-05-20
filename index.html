@@ -53,7 +53,7 @@
 		<option value="-1">--Choose a path--</option>
 	</select>
 	<button onclick="editSelectedPath()">Edit path</button>
-	<button onclick="">Delete path</button>
+	<button onclick="deleteSelectedPath()">Delete path</button>
 </div>
 </center>
 <br/>
@@ -102,6 +102,34 @@ function removePolylines(savedChoice){
 		polylines.splice(index, 1);
 		polylineIds.splice(index, 1);
 		index = polylineIds.indexOf(parseInt(savedChoice));
+	}
+}
+
+function removeMarkers(savedChoice){
+	for(var j=0; j<markers.length; j++){
+		if(markersPathIds[j] == parseInt(savedChoice)){
+			markers[j].remove();
+		}
+	}
+	var index = markersPathIds.indexOf(parseInt(savedChoice));
+	while(index != -1){
+		markers.splice(index, 1);
+		markersPathIds.splice(index, 1);
+		latLng.splice(index, 2);
+		if(markersPathIds.indexOf(parseInt(savedChoice)) != -1){
+			route-=2;
+		}
+		index = markersPathIds.indexOf(parseInt(savedChoice));
+	}
+	i = 0;
+}
+var deletedPath = false;
+function deleteSelectedPath(){
+	if(parseInt(savedChoice) != -1){
+		removePolylines(savedChoice);
+		removeMarkers(savedChoice);
+		deletedPath = true;
+		editPathsList();
 	}
 }
 function stopEditMode(){
@@ -206,16 +234,21 @@ function editPathsList(){
 	optionChoose.value = -1;
 	document.getElementById("path-select").add(optionChoose);
 	// add all the paths options
+	
 	for(var i=0; i<=polylineId; i++){
-		var option = document.createElement("option");
-		option.text = "Path n°"+pathId;
-		option.value = pathId;
-		document.getElementById("path-select").add(option);
-		pathId++;
-		if(i == polylineId){
-			test = false;
+		if(!deletedPath){
+			var option = document.createElement("option");
+			option.text = "Path n°"+pathId;
+			option.value = pathId;
+			document.getElementById("path-select").add(option);
+			pathId++;
+			if(i == polylineId){
+				test = false;
+			}
+		} else {
+			deletedPath = false;
 		}
-	}
+	} 
 }
 
 L.mapbox.accessToken = 'pk.eyJ1IjoibGVvbHIiLCJhIjoiY2s5bXB1ZnUzMDZzZjNmbnR6OXVzemF0byJ9.MeB8qySF0KJn0WHkOOZj3Q';
