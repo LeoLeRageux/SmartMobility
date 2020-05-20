@@ -12,8 +12,13 @@
 <body>
 <center>
 <p id="info"> --- </p>
-<div id='map' style='width: 1590px; height: 500px;' onclick="addPointer()"></div>
+<div id='map' style='width: 1590px; height: 500px;' onclick="if(editMode==false){addPointer();}"></div>
 <p> Simulation speed : <button id="simSpeed" onclick="changeSpeed()">Normal</button></p>
+
+<div id="stopEditingButton" style="display: none">
+	<button onclick="stopEditMode()">Stop editing</button>
+</div>
+<div id="allExceptEditButton" style="display: block">
 <button onclick="createNewRoute()">Draw a new path</button>
 <button onclick="showSettings()">Settings</button>
 
@@ -44,10 +49,10 @@
 <div id="path-management" style="display: none">
 	<button onclick="">Add a path</button>
 	<label for="path-select">Choose a path :</label>
-	<select name="path-select" id="path-select" onchange="">
-		<option value="">--Choose a path--</option>
+	<select name="path-select" id="path-select" onchange="savedChoice = document.getElementById('path-select').value;">
+		<option value="-1">--Choose a path--</option>
 	</select>
-	<button onclick="">Edit path</button>
+	<button onclick="editSelectedPath()">Edit path</button>
 	<button onclick="">Delete path</button>
 </div>
 </center>
@@ -55,11 +60,68 @@
 <center>
 <button onclick="simulateTrajectory()">Start Simulation</button>
 </center>
+</div>
 <script>
+var editMode = false;
+var indexes = [];
+var chosenPath;
+var savedChoice;
+function editSelectedPath(){
+	chosenPath =  // -1 = no path chosen, value correspond to the id of the path
+	editMode = true;
+	document.getElementById("stopEditingButton").style.display = "block";
+	document.getElementById("allExceptEditButton").style.display = "none";
+	if(parseInt(savedChoice) != -1){ // TODO : lock the select "path-select" so the user can't edit more than 1 path at a time (might cause a bug with the current function)
+		polylineId_old = polylineId;
+		polylineId = parseInt(savedChoice);
+		for(var i=0; i<markers.length; i++){
+			if(markersPathIds[i] == parseInt(savedChoice)){ // get the markers of the chosenPath
+				markers[i].dragging.enable();
+				markers[i].on('dragend', function(event) {
+					removePolylines(savedChoice);
+					// rebuild the path using the markers
+					var icon = greenIcon;
+					for(var i=0; i<markers.length-1; i++){
+						if(markersPathIds[i] == parseInt(savedChoice)){
+							callApi(markers[i].getLatLng().lng, markers[i].getLatLng().lat, markers[i+1].getLatLng().lng, markers[i+1].getLatLng().lat);
+						}
+					}
+				});
+			}
+		}
+	}
+}
+function removePolylines(savedChoice){
+	for(var j=0; j<polylines.length; j++){
+		if(polylineIds[j] == parseInt(savedChoice)){
+			polylines[j].remove();
+		}
+	}
+	var index = polylineIds.indexOf(parseInt(savedChoice));
+	while(index != -1){
+		polylines.splice(index, 1);
+		polylineIds.splice(index, 1);
+		index = polylineIds.indexOf(parseInt(savedChoice));
+	}
+}
+function stopEditMode(){
+	editMode = false;
+	document.getElementById("stopEditingButton").style.display = "none";
+	document.getElementById("allExceptEditButton").style.display = "block";
+	var chosenPath = document.getElementById("path-select");
+	if(savedChoice != -1){ // TODO : unlock the select "path-select"
+		for(var i=0; i<markers.length; i++){
+			if(markersPathIds[i] == savedChoice){
+				markers[i].dragging.disable();
+			}
+		}
+	}
+}
 var newRoute = false;
 function createNewRoute(){
 	newRoute = true;
 	polylineId++;
+	markerPathId++;
 }
 function showPathManagement(){
 	var settingsDiv = document.getElementById("path-management");
@@ -102,10 +164,10 @@ function changeSpeed(){
 var polylines = [];
 var polylineId = 0;
 var polylineIds = [];
-function callApi(){
+function callApi(lng1, lat1, lng2, lat2){
 	var client = new XMLHttpRequest();
 	client.open("GET",
-	"https://api.mapbox.com/directions/v5/mapbox/driving/"+latLng[route+1]+","+latLng[route]+";"+latLng[route+3]+","+latLng[route+2]+"?geometries=geojson&access_token=pk.eyJ1IjoibGVvbHIiLCJhIjoiY2s5bXB1ZnUzMDZzZjNmbnR6OXVzemF0byJ9.MeB8qySF0KJn0WHkOOZj3Q"
+	"https://api.mapbox.com/directions/v5/mapbox/driving/"+lng1+","+lat1+";"+lng2+","+lat2+"?geometries=geojson&access_token=pk.eyJ1IjoibGVvbHIiLCJhIjoiY2s5bXB1ZnUzMDZzZjNmbnR6OXVzemF0byJ9.MeB8qySF0KJn0WHkOOZj3Q"
 	, true);
 	client.onreadystatechange = function() {
 		if(client.readyState == 4) {
@@ -127,7 +189,12 @@ function callApi(){
 	client.send();
 }
 
+var test = false;
 function editPathsList(){
+	if(test = false){
+		savedChoice = document.getElementById("path-select").value;
+		test = true;
+	}
 	var pathId = 0;
 	// clear select options
 	for(var j=document.getElementById("path-select").options.length-1; j>=0; j--){
@@ -136,14 +203,18 @@ function editPathsList(){
 	// add the "Choose a path" option
 	var optionChoose = document.createElement("option");
 	optionChoose.text = "--Choose a path--";
+	optionChoose.value = -1;
 	document.getElementById("path-select").add(optionChoose);
 	// add all the paths options
-	for(var i=0; i<polylines.length; i++){
+	for(var i=0; i<=polylineId; i++){
 		var option = document.createElement("option");
 		option.text = "Path n°"+pathId;
 		option.value = pathId;
 		document.getElementById("path-select").add(option);
 		pathId++;
+		if(i == polylineId){
+			test = false;
+		}
 	}
 }
 
@@ -162,10 +233,10 @@ var markerPathId = 0;
 var markersPathIds = [];
 var route = 0;
 function addPointer(){
-	var marker = L.circleMarker([
+	var marker = L.marker([
 	document.getElementById("info").innerHTML.split(",")[0],
 	document.getElementById("info").innerHTML.split(",")[1]
-	],{radius : 6}).addTo(map);
+	],{radius : 6, draggable : false}).addTo(map);
 	latLng.push(document.getElementById("info").innerHTML.split(",")[0]);
 	latLng.push(document.getElementById("info").innerHTML.split(",")[1]);
 	markers.push(marker);
@@ -178,7 +249,7 @@ function addPointer(){
 
 function traceRoute(){
 		if(!newRoute){
-			callApi();
+			callApi(latLng[route+1], latLng[route], latLng[route+3], latLng[route+2]);
 		}
 		if(newRoute || polylines.length == 0){
 			var option = document.createElement("option");
