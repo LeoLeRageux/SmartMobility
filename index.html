@@ -13,12 +13,14 @@
 <center>
 <p id="info"> --- </p>
 <div id='map' style='width: 1590px; height: 500px;' onclick="if(editMode==false){addPointer();}"></div>
-<p> Simulation speed : <button id="simSpeed" onclick="changeSpeed()">Normal</button></p>
-
 <div id="stopEditingButton" style="display: none">
 	<button onclick="stopEditMode()">Stop editing</button>
 </div>
+</center>
 <div id="allExceptEditButton" style="display: block">
+<center>
+
+<p> Simulation speed : <button id="simSpeed" onclick="changeSpeed()">Normal</button></p>
 <button onclick="createNewRoute()">Draw a new path</button>
 <button onclick="showSettings()">Settings</button>
 
@@ -55,9 +57,7 @@
 	<button onclick="editSelectedPath()">Edit path</button>
 	<button onclick="deleteSelectedPath()">Delete path</button>
 </div>
-</center>
 <br/>
-<center>
 <button onclick="simulateTrajectory()">Start Simulation</button>
 </center>
 </div>
@@ -71,7 +71,7 @@ function editSelectedPath(){
 	editMode = true;
 	document.getElementById("stopEditingButton").style.display = "block";
 	document.getElementById("allExceptEditButton").style.display = "none";
-	if(parseInt(savedChoice) != -1){ // TODO : lock the select "path-select" so the user can't edit more than 1 path at a time (might cause a bug with the current function)
+	if(parseInt(savedChoice) != -1){
 		polylineId_old = polylineId;
 		polylineId = parseInt(savedChoice);
 		for(var i=0; i<markers.length; i++){
@@ -137,7 +137,7 @@ function stopEditMode(){
 	document.getElementById("stopEditingButton").style.display = "none";
 	document.getElementById("allExceptEditButton").style.display = "block";
 	var chosenPath = document.getElementById("path-select");
-	if(savedChoice != -1){ // TODO : unlock the select "path-select"
+	if(savedChoice != -1){
 		for(var i=0; i<markers.length; i++){
 			if(markersPathIds[i] == savedChoice){
 				markers[i].dragging.disable();
