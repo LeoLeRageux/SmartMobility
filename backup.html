@@ -113,6 +113,7 @@ checked="checked"
             <tr class="table-primary">
                 <th>Number</th>
                 <th>Name</th>
+				<th>Color</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -429,6 +430,7 @@ function editPathsList(){
 		if(!deletedPath){
 			t.row.add([i,
 			pathNames[i]+" "+btn(),
+			polylines[polylineIds.indexOf(i)].options.color,
 			// add nothing so defaultvalue will overrite and will add buttons
 			]).draw(true);
 			if(i == polylineId){
@@ -636,6 +638,7 @@ function changePathsColor(){
 				color: document.getElementById("color-path-select").value
 			});
 		}
+		editPathsList();
 	}
 	else {
 		alert("Draw at least 1 path before changing path colors !");
