@@ -247,6 +247,7 @@ function removeMarkers(savedChoice){
 	var index = markersPathIds.indexOf(savedChoice);
 	while(index != -1){
 		markers.splice(index, 1);
+		markersIds.splice(index, 1);
 		markersPathIds.splice(index, 1);
 		latLng.splice(index, 2);
 		if(markersPathIds.indexOf(savedChoice) != -1){
@@ -439,6 +440,38 @@ function editPathsList(){
 	} 
 }
 
+function deleteMarker(id){
+	var index = markersIds.indexOf(id);
+	var chosenPathId = markersPathIds[index];
+	// delete the marker
+	markers[index].remove();
+	markers.splice(index, 1);
+	markersPathIds.splice(index, 1);
+	markersIds.splice(index, 1);
+	latLng.splice(index, 2);
+	
+	// check if the last marker of the path has been deleted, will trigger the creation of a new route
+	var numberOfMarkers = 0;
+	for(var i=0; i<markers.length; i++){
+		if(markersPathIds[i] == chosenPathId){
+			numberOfMarkers++;
+		}
+	}
+	if(numberOfMarkers == 0){
+		newRoute = true; // create a new route because the last marker of the path has been deleted
+	}
+	// rebuild the path
+	var length = polylines.length
+	removePolylines(chosenPathId);
+	editLatLngs(chosenPathId);
+	// rebuild the path using the markers
+	for(var i=0; i<length+1; i++){
+		if(markersPathIds[i] == chosenPathId && markersPathIds[i+1] == chosenPathId){
+			callApi(markers[i].getLatLng().lng, markers[i].getLatLng().lat, markers[i+1].getLatLng().lng, markers[i+1].getLatLng().lat, transportationMode);
+		}
+	}
+}
+
 var roundIcon = new L.Icon({
   iconUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Ski_trail_rating_symbol-green_circle.svg/480px-Ski_trail_rating_symbol-green_circle.svg.png',
   iconSize: [16, 16],
@@ -456,6 +489,7 @@ var latLng = [];
 var markers = [];
 var markerPathId = 0;
 var markersPathIds = [];
+var markersIds = [];
 var route = 0;
 var bias = 0;
 var even = true;
@@ -464,12 +498,12 @@ function addPointer(){
 		var marker = L.marker([
 		document.getElementById("info").innerHTML.split(",")[0],
 		document.getElementById("info").innerHTML.split(",")[1]
-		],{radius : 6, draggable : false}).addTo(map).bindPopup(lat+" "+lng);
+		],{radius : 6, draggable : false}).addTo(map).bindPopup(lat+" "+lng+' '+i+' '+'<br/><button onclick="deleteMarker('+i+')">Delete this marker</button>');
 	} else {
 		var marker = L.marker([
 		document.getElementById("info").innerHTML.split(",")[0],
 		document.getElementById("info").innerHTML.split(",")[1]
-		],{radius : 6, draggable : false, icon : roundIcon}).addTo(map).bindPopup(lat+" "+lng);
+		],{radius : 6, draggable : false, icon : roundIcon}).addTo(map).bindPopup(lat+" "+lng+' '+i+' '+'<br/><button onclick="deleteMarker('+i+')">Delete this marker</button>');
 	}
 	if(addMode){
 		// add to a specific index, not at the end of the array
@@ -478,11 +512,13 @@ function addPointer(){
 		// pushed lat, lng in array after the last marker
 		markers.splice(lastMarker+1, 0, marker);
 		markersPathIds.splice(lastMarker+1, 0, tempMarkerPathId);
+		markersIds.splice(lastMarker+1, 0, i);
 		bias += 2;
 	} else {
 		latLng.push(document.getElementById("info").innerHTML.split(",")[0]);
 		latLng.push(document.getElementById("info").innerHTML.split(",")[1]);
 		markers.push(marker);
+		markersIds.push(i);
 		markersPathIds.push(markerPathId);
 	}
 	if(i>0){
