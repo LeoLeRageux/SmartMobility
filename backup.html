@@ -21,7 +21,7 @@
 		"columnDefs": [ {
         "targets": -1,
         "data": null,
-        "defaultContent": '<button>Add To Path</button> <button>Edit path</button> <button>Delete Path</button>'
+        "defaultContent": '<button>Add To Path</button> <button>Edit path</button> <button>Delete Path</button> <button>Check Edits History</button>'
     } ]
 	});
 	
@@ -33,6 +33,8 @@
 			editSelectedPath()
 		} else if (this.innerHTML == "Delete Path"){
 			deleteSelectedPath();
+		} else if (this.innerHTML == "Check Edits History"){
+			checkEditsHistory();
 		} else {
 			changePathName(savedChoice);
 		}
@@ -127,6 +129,18 @@ checked="checked"
 </center>
 </div>
 <script>
+var pathsEditsHistory = [];
+var firstEditRemoved = [];
+
+function checkEditsHistory(){
+	var string = "";
+	for(var j=0; j<pathsEditsHistory[savedChoice].length; j++){
+		string+=pathsEditsHistory[savedChoice][j];
+		string+=" ";
+	}
+	alert(string);
+}
+
 function redirectToDL(){
 	location.href = 'http://localhost/GDrive/index2.html?fileToGD='+stringToDownload;
 }
@@ -203,6 +217,11 @@ function editSelectedPath(){
 			if(markersPathIds[i] == savedChoice){ // get the markers of the chosenPath
 				markers[i].dragging.enable();
 				markers[i].on('dragend', function(event) {
+					if(firstEditRemoved[savedChoice] == false){
+						pathsEditsHistory[savedChoice].pop();
+						firstEditRemoved[savedChoice] = true;
+					}
+					pathsEditsHistory[savedChoice].push("marker "+this._popup._content.split(" ")[2]+" has been moved to "+this.getLatLng());
 					var length = polylines.length
 					removePolylines(savedChoice);
 					editLatLngs(savedChoice);
@@ -264,6 +283,7 @@ function deleteSelectedPath(){
 	removeMarkers(savedChoice);
 	deletedPath = true; // this value is set to true so the function callApi isn't called at the first point
 	pathNames.splice(savedChoice, 1);
+	pathsEditsHistory.splice(savedChoice, 1);
 	editPathsList();
 }
 
@@ -497,6 +517,9 @@ var bias = 0;
 var even = true;
 function addPointer(){
 	if(newRoute || markers.length == 0){
+		pathsEditsHistory.push(["No Edits Yet"]);
+		firstEditRemoved.push(false);
+		
 		var marker = L.marker([
 		document.getElementById("info").innerHTML.split(",")[0],
 		document.getElementById("info").innerHTML.split(",")[1]
