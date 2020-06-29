@@ -10,6 +10,9 @@ L.AnimatedMarker = L.Marker.extend({
     onEnd: function(){
 		this.remove();
 		currentRunningMarkers.pop();
+		if(currentRunningMarkers.length == 0){
+			document.getElementById("startSimBtn").removeAttribute("disabled","disabled");
+		}
 	},
     clickable: false
   },
